@@ -6,7 +6,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="icon" type="redbay.png" href="https://www.redbayuav.com/wp-content/uploads/2017/08/redbaylogo-300x212.png">
 
-  <!-- CesiumJS -->
   <script src="https://cesium.com/downloads/cesiumjs/releases/1.127/Build/Cesium/Cesium.js"></script>
   <link href="https://cesium.com/downloads/cesiumjs/releases/1.127/Build/Cesium/Widgets/widgets.css" rel="stylesheet" />
 
@@ -53,24 +52,63 @@
     }
 
     .panel {
-      position:absolute; top:12px; left:12px; z-index:10;
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      z-index: 10;
       background: rgba(0,0,0,0.92);
-      color:#ffffff;
-      padding:12px;
-      border-radius:12px;
+      color: #ffffff;
+      padding: 12px;
+      border-radius: 12px;
       width: 260px;
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
       border: 1px solid rgba(255,255,255,0.10);
       box-shadow: 0 12px 28px rgba(0,0,0,0.65);
+      transition: transform 0.3s ease;
+    }
+
+    .panel.collapsed {
+      transform: translateX(-280px);
+    }
+
+    .panel-toggle {
+      position: absolute;
+      right: -40px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 40px;
+      height: 60px;
+      background: rgba(0,0,0,0.92);
+      border: 1px solid rgba(255,255,255,0.10);
+      border-left: none;
+      border-radius: 0 12px 12px 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: #fff;
+      font-size: 20px;
+      transition: background 0.2s ease;
+    }
+
+    .panel-toggle:hover {
+      background: rgba(20,20,20,0.95);
     }
 
     .brand {
-      display:flex; align-items:center; justify-content:space-between;
-      gap:8px; margin-bottom:8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
     }
+
     .brand img {
       display: block;
-      margin-bottom: 5px;
+      transition: opacity 0.2s ease;
+    }
+
+    .brand a:hover img {
+      opacity: 0.8;
     }
 
     .badge {
@@ -81,23 +119,36 @@
       border: 1px solid rgba(255,255,255,0.15);
       opacity: 0.95;
       white-space: nowrap;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-block;
+      margin-bottom: 8px;
+      text-decoration: none;
+      color: #fff;
     }
 
-    .row { margin: 6px 0; display:flex; gap:6px; align-items:center; }
+    .badge:hover {
+      border-color: rgba(255,255,255,0.35);
+      opacity: 1;
+      background: #111;
+    }
+
+    .row { margin: 6px 0; display: flex; gap: 6px; align-items: center; }
 
     select, button {
-      width:100%;
-      padding:8px;
-      border-radius:10px;
-      border:1px solid rgba(255,255,255,0.15);
-      background:#000;
-      color:#fff;
-      font-weight:600;
-      font-size:13px;
+      width: 100%;
+      padding: 8px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: #000;
+      color: #fff;
+      font-weight: 600;
+      font-size: 13px;
       outline: none;
     }
-    button { cursor:pointer; }
-    button:hover { border-color: rgba(255,255,255,0.35); background:#111; }
+
+    button { cursor: pointer; }
+    button:hover { border-color: rgba(255,255,255,0.35); background: #111; }
 
     #btnSplitScreen {
       background: linear-gradient(135deg, #1a1a1a 0%, #000 100%);
@@ -113,9 +164,9 @@
       margin-top: 8px;
       font-size: 11px;
       opacity: 0.72;
-      display:flex;
-      justify-content:space-between;
-      gap:10px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
       border-top: 1px solid rgba(255,255,255,0.08);
       padding-top: 8px;
     }
@@ -132,17 +183,22 @@
     </div>
   </div>
 
-  <div class="panel">
+  <div class="panel" id="controlPanel">
+    <div class="panel-toggle" id="panelToggle">›</div>
+
     <div class="brand">
-      <img src="https://www.redbayuav.com/wp-content/uploads/2017/08/redbaylogo-300x212.png" alt="Redbay Technologies" style="height:30px; width:auto;">
+      <a href="https://www.redbayuav.com" target="_blank" style="text-decoration:none;">
+        <img src="https://www.redbayuav.com/wp-content/uploads/2017/08/redbaylogo-300x212.png" alt="Redbay Technologies" style="height:30px; width:auto;">
+      </a>
     </div>
-    <div class="badge">Redbay Technologies</div>
+
+    <a href="https://www.redbayuav.com" target="_blank" class="badge">Redbay Technologies</a>
 
     <div class="row">
       <select id="typeSelect">
         <option value="">Select</option>
-        <option value="old">Nov-2025</option>
-        <option value="new">Jan-2026</option>
+        <option value="Nov-2025">Nov-2025</option>
+        <option value="Jan-2026">Jan-2026</option>
       </select>
     </div>
 
@@ -187,7 +243,7 @@
     const HEIGHT_OFFSET_METERS = 60;
 
     Cesium.Ion.defaultAccessToken = undefined;
-    
+
     const viewer = new Cesium.Viewer("cesiumContainer", {
       terrain: undefined,
       timeline: false,
@@ -219,6 +275,22 @@
     });
 
     viewer.scene.globe.depthTestAgainstTerrain = false;
+
+    // Panel toggle
+    const controlPanel = document.getElementById("controlPanel");
+    const panelToggle = document.getElementById("panelToggle");
+    let isPanelCollapsed = false;
+
+    panelToggle.addEventListener("click", () => {
+      isPanelCollapsed = !isPanelCollapsed;
+      if (isPanelCollapsed) {
+        controlPanel.classList.add("collapsed");
+        panelToggle.textContent = "‹";
+      } else {
+        controlPanel.classList.remove("collapsed");
+        panelToggle.textContent = "›";
+      }
+    });
 
     const statusText = document.getElementById("statusText");
     function setStatus(t) { statusText.textContent = t; }
@@ -264,17 +336,26 @@
 
     const BASE_URL = "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/amaravati-3d-data-files";
     const MODEL_OPTIONS = {
-      old: [
+      "Nov-2025": [
         { label: "Go 1 and 2 Housing (Tower A)", url: BASE_URL + "/tower_A/tileset.json" },
         { label: "Non Gazetted Officers Housing (Tower B)", url: BASE_URL + "/tower_B/Non+Gazetted+Officers+Housing/tileset.json" },
         { label: "Project Office_PEB4_MLA_MLC_MP_AIS-Housing_Princ-Sec (Tower C)", url: BASE_URL + "/tower_C/Project+Office_PEB4_MLA_MLC_MP_AIS-Housing_Princ-Sec/tileset.json" }
       ],
-      new: [
-        { label: "Go 1 and 2 Housing (Tower A)", url: BASE_URL + "/tower_A/tileset.json" },
-        { label: "Go 1 and 2 Housing (Tower A)", url: BASE_URL + "/tower_A/tileset.json" },
-        { label: "Go 1 and 2 Housing (Tower A)", url: BASE_URL + "/tower_A/tileset.json" },
-        { label: "Go 1 and 2 Housing (Tower A)", url: BASE_URL + "/tower_A/tileset.json" },
-        { label: "Go 1 and 2 Housing (Tower A)", url: BASE_URL + "/tower_A/tileset.json" }
+      "Jan-2026": [
+        { label: "4 PEB Structures near Project Office", url: "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/amaravati-3d-data-files/4_PEB_Structures_near_project_office-Jan26/tileset.json" },
+        { label: "Assembly", url: "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/3D_Jan2026/Assembly-Jan26/tileset.json" },
+        { label: "Bungalow for Principal Secretaries", url: "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/3D_Jan2026/Bunglow_for_Principal_Secretaries-Jan26/tileset.json" },
+        { label: "Bungalows for Hon'ble Ministers", url: "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/3D_Jan2026/Bunglows_for_Hon'ble_Ministers-Jan26/tileset.json" },
+        { label: "GAD Towers", url: "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/3D_Jan2026/GAD_Towers-Jan26/tileset.json" },
+        { label: "GO I & II Housing", url: "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/3D_Jan2026/GO_I%26II_housing-Jan26/tileset.json" },
+        { label: "Group D Housing", url: "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/3D_Jan2026/Group_D_Housing-Jan26/tileset.json" },
+        { label: "Happy Nest", url: "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/3D_Jan2026/Happy_Nest-Jan26/tileset.json" },
+        { label: "High Court", url: "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/3D_Jan2026/High_Court-Jan26/tileset.json" },
+        { label: "Hon'ble AIS Officers Housing", url: "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/3D_Jan2026/Hon'ble+_AIS_Officers_Housing-Jan26/tileset.json" },
+        { label: "Hon'ble MLAs & MLCs Housing", url: "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/3D_Jan2026/Hon'ble_MLAs%26MLCs_Housing-Jan26/tileset.json" },
+        { label: "Non Gazetted Officers Housing", url: "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/3D_Jan2026/Non_Gazetted_Officers_Housing-Jan26/tileset.json" },
+        { label: "Project Office", url: "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/3D_Jan2026/Project_Office-Jan26/tileset.json" },
+        { label: "Parade Ground", url: "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/3D_Jan2026/Perade_Ground-Jan26/tileset.json" }
       ]
     };
 
@@ -355,6 +436,7 @@
     }
 
     function carto(p) { return Cesium.Cartographic.fromCartesian(p); }
+
     function formatMeters(m) {
       if (!isFinite(m)) return "0 m";
       if (m >= 1000) return (m / 1000).toFixed(3) + " km";
