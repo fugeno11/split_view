@@ -2,33 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>3D Map Viewer</title>
+  <title>3D Map Viewer — Slave</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-
   <link href="https://cesium.com/downloads/cesiumjs/releases/1.127/Build/Cesium/Widgets/widgets.css" rel="stylesheet" />
-
   <style>
     html, body { width:100%; height:100%; margin:0; padding:0; overflow:hidden; background:#000; }
-
-    #mainContainer { width:100%; height:100%; display:flex; position:relative; }
-
-    #cesiumContainer {
-      width: 100%; height: 100%;
-      transition: width 0.3s ease;
-      position: relative;
-    }
-    #cesiumContainer.split { width: 50%; }
-
-    #secondViewContainer {
-      width: 0; height: 100%;
-      border-left: 2px solid #333;
-      overflow: hidden;
-      transition: width 0.3s ease;
-      position: relative;
-      background: #000;
-    }
-    #secondViewContainer.active { width: 50%; }
-    #secondViewFrame { width:100%; height:100%; border:none; display:block; }
+    #cesiumContainer { width:100%; height:100%; }
 
     /* ── Hide ALL Cesium Ion branding ── */
     .cesium-viewer-bottom,
@@ -43,837 +22,225 @@
       display: none !important;
     }
 
-    /* ── Custom top-right toolbar overlay ── */
-    #customToolbar {
-      position: absolute;
-      top: 0;
-      right: 9999px;
-      z-index: 100;
-      display: flex;
-      align-items: center;
-      gap: 3px;
-      padding: 2px 4px;
-      background: rgba(40, 40, 40, 0.85);
-      border-radius: 4px;
-      pointer-events: auto;
-    }
+    /* Remove ALL Cesium toolbar — slave is passive */
+    .cesium-viewer-toolbar { display: none !important; }
 
-    /* ── Toolbar icon buttons ── */
-    .tb-btn {
-      position: relative;
-      width: 29px;
-      height: 29px;
-      border-radius: 4px;
-      border: 1px solid rgba(255,255,255,0.18);
-      background: #000;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0;
-      flex-shrink: 0;
-      transition: border-color 0.2s, background 0.2s;
-    }
-    .tb-btn:hover  { border-color: rgba(255,255,255,0.5); background: #1a1a1a; }
-    .tb-btn.active { border-color: rgba(80,220,80,0.6);   background: rgba(15,50,15,0.9); }
-    .tb-btn img    { width: 20px; height: 20px; object-fit: contain; display: block; }
-
-    /* Tooltip — BELOW the button */
-    .tb-btn::after {
-      content: attr(data-tip);
-      position: absolute;
-      top: calc(100% + 7px);
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0,0,0,0.92);
-      color: #fff;
-      font-size: 11px;
-      font-family: system-ui, sans-serif;
-      font-weight: 600;
-      white-space: nowrap;
-      padding: 4px 8px;
-      border-radius: 5px;
-      border: 1px solid rgba(255,255,255,0.15);
-      pointer-events: none;
-      opacity: 0;
-      transition: opacity 0.15s;
-      z-index: 200;
-    }
-    .tb-btn:hover::after { opacity: 1; }
-
-    /* ── Measure flyout panel — horizontal icon row ── */
-    #measureFlyout {
+    /* Overlay label showing this is the slave */
+    #slaveLabel {
       position: fixed;
-      top: 0; left: 0;          /* JS will set exact position */
-      display: none;
-      flex-direction: row;
-      gap: 4px;
-      background: rgba(28,28,28,0.95);
-      border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 6px;
-      padding: 4px 6px;
-      z-index: 9999;
-      /* centre the row horizontally relative to the measure button via JS */
-    }
-    #measureFlyout.open { display: flex; }
-
-    .flyout-btn {
-      position: relative;
-      width: 29px;
-      height: 29px;
-      border-radius: 4px;
-      border: 1px solid rgba(255,255,255,0.18);
-      background: #000;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0;
-      transition: border-color 0.2s, background 0.2s;
-    }
-    .flyout-btn:hover  { border-color: rgba(255,255,255,0.5); background: #1a1a1a; }
-    .flyout-btn.active { border-color: rgba(80,220,80,0.6);   background: rgba(15,50,15,0.9); }
-    .flyout-btn img    { width: 20px; height: 20px; object-fit: contain; display: block; }
-
-    /* Tooltip on flyout buttons — BELOW */
-    .flyout-btn::after {
-      content: attr(data-tip);
-      position: absolute;
-      top: calc(100% + 7px);
+      top: 10px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(0,0,0,0.92);
-      color: #fff;
+      z-index: 100;
+      background: rgba(0,0,0,0.75);
+      color: rgba(255,255,255,0.55);
       font-size: 11px;
       font-family: system-ui, sans-serif;
-      font-weight: 600;
-      white-space: nowrap;
-      padding: 4px 8px;
-      border-radius: 5px;
-      border: 1px solid rgba(255,255,255,0.15);
-      pointer-events: none;
-      opacity: 0;
-      transition: opacity 0.15s;
-      z-index: 10000;
-    }
-    .flyout-btn:hover::after { opacity: 1; }
-
-    /* ── Side panels ── */
-    .panel {
-      position: absolute;
-      left: 12px;
-      z-index: 50;
-      background: rgba(0,0,0,0.92);
-      color: #fff;
-      padding: 12px;
-      border-radius: 12px;
-      width: 260px;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
-      border: 1px solid rgba(255,255,255,0.10);
-      box-shadow: 0 12px 28px rgba(0,0,0,0.65);
-    }
-    .panel.collapsed {
-      transform: translateX(calc(-100% - 12px));
-      transition: transform 0.3s ease;
-    }
-    .panel.expanded {
-      transform: translateX(0);
-      transition: transform 0.3s ease;
-    }
-
-    /* Tab sticking out to the right */
-    .panel-toggle {
-      position: absolute;
-      left: 100%;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 28px; height: 52px;
-      background: rgba(0,0,0,0.92);
-      border: 1px solid rgba(255,255,255,0.10);
-      border-left: none;
-      border-radius: 0 10px 10px 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      color: #fff;
-      font-size: 18px;
-      line-height: 1;
-      user-select: none;
-      transition: background 0.2s;
-    }
-    .panel-toggle:hover { background: rgba(30,30,30,0.97); }
-
-    #controlPanel { top: 12px; }
-    #layersPanel  { top: 0; }
-
-    .row { margin: 6px 0; display: flex; gap: 6px; align-items: center; }
-
-    select, .panel button {
-      width: 100%; padding: 8px;
-      border-radius: 10px;
-      border: 1px solid rgba(255,255,255,0.15);
-      background: #000; color: #fff;
-      font-weight: 600; font-size: 13px;
-      outline: none; cursor: pointer;
-    }
-    .panel button:hover { border-color: rgba(255,255,255,0.35); background: #111; }
-
-    .footer {
-      margin-top: 8px; font-size: 11px; opacity: 0.72;
-      display: flex; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 8px;
-    }
-
-    .layers-title {
-      font-size: 10px; font-weight: 700;
-      text-transform: uppercase; letter-spacing: 0.1em;
-      opacity: 0.5; margin-bottom: 8px; padding-bottom: 6px;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
-    }
-
-    /* ── Layer checkbox rows ── */
-    .layer-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 7px 8px;
-      border-radius: 8px;
-      border: 1px solid rgba(255,255,255,0.08);
-      background: #000;
-      margin: 4px 0;
-      cursor: pointer;
-      transition: border-color 0.2s, background 0.2s;
-      font-weight: 600;
-      font-size: 13px;
-      color: #fff;
-      user-select: none;
-    }
-    .layer-item:hover { border-color: rgba(255,255,255,0.25); background: #0d0d0d; }
-    .layer-item.active { border-color: rgba(80,180,255,0.5); background: rgba(8,25,55,0.9); }
-
-    .layer-item input[type="checkbox"] {
-      width: 15px; height: 15px;
-      accent-color: #4db4ff;
-      cursor: pointer;
-      flex-shrink: 0;
-      margin: 0;
-    }
-
-    /* ── Right-side sub-layer panel ── 
-       width: 240px  |  max-height: calc(100vh - 70px)
-    ── */
-    #rightPanel {
-      position: fixed;           /* fixed so it never shifts with map pan */
-      right: 12px;
-      top: 60px;                 /* below the Cesium top toolbar (~50px) */
-      z-index: 60;
-      background: #a9a9a9;
-      color: #111;
-      padding: 12px;
-      border-radius: 12px;
-      width: 240px;              /* ← panel width  */
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
-      border: 1px solid rgba(0,0,0,0.18);
-      box-shadow: 0 12px 28px rgba(0,0,0,0.45);
-      max-height: calc(100vh - 70px);   /* ← panel max-height */
-      overflow-y: auto;
-      transform: translateX(calc(100% + 20px));
-      transition: transform 0.35s cubic-bezier(0.34,1.56,0.64,1), opacity 0.25s ease;
-      opacity: 0;
-      pointer-events: none;
-    }
-    #rightPanel.open {
-      transform: translateX(0);
-      opacity: 1;
-      pointer-events: auto;
-    }
-    #rightPanel::-webkit-scrollbar { width: 5px; }
-    #rightPanel::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); border-radius: 3px; }
-    #rightPanel::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.3); border-radius: 3px; }
-
-    .right-panel-title {
-      font-size: 11px;
-      font-weight: 800;
-      text-transform: uppercase;
+      font-weight: 700;
       letter-spacing: 0.08em;
-      color: #222;
-      margin-bottom: 8px;
-      padding-bottom: 6px;
-      border-bottom: 1px solid rgba(0,0,0,0.2);
+      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.1);
+      pointer-events: none;
+      user-select: none;
     }
 
-    .sub-layer-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 5px 6px;
-      border-radius: 6px;
-      margin: 2px 0;
-      cursor: pointer;
-      font-size: 12px;
-      font-weight: 600;
-      color: #111;
-      transition: background 0.15s;
+    /* Tiny sync indicator — pulses when a camera message arrives */
+    #syncDot {
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #6ee86e;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.05s ease-in;
     }
-    .sub-layer-item:hover { background: rgba(0,0,0,0.1); }
-    .sub-layer-item input[type="checkbox"] {
-      width: 14px; height: 14px;
-      accent-color: #1a5fad;
-      cursor: pointer;
-      flex-shrink: 0;
-      margin: 0;
-    }
-    .sub-layer-item label {
-      cursor: pointer;
-      color: #1a3a6b;
-      text-decoration: underline;
-      font-weight: 600;
+    #syncDot.pulse {
+      opacity: 1;
+      transition: none;
     }
   </style>
 </head>
 <body>
 
-<div id="mainContainer">
-  <div id="cesiumContainer"></div>
-  <div id="secondViewContainer">
-    <iframe id="secondViewFrame" src=""></iframe>
-  </div>
-</div>
-
-<!-- ── Custom top-right toolbar ── -->
-<div id="customToolbar">
-  <button class="tb-btn" id="btnSplit"   data-tip="Split Screen View">
-    <img src="https://image2url.com/r2/default/images/1771898425963-2f9b4797-3007-4966-beb7-15bd54acc641.png" />
-  </button>
-  <button class="tb-btn" id="btnMeasureToggle" data-tip="Measure Tools">
-    <img src="https://image2url.com/r2/default/images/1772020856014-43a48800-7601-45e7-8d7b-bb3f7a875b8d.png" />
-  </button>
-</div>
-
-<!-- Measure flyout -->
-<div id="measureFlyout">
-  <button class="flyout-btn" id="btnMeasureDistance" data-tip="Measure Distance"><img src="https://image2url.com/r2/default/images/1771898528017-90d84abf-35dc-4b6c-9806-b8d15c74d5c8.png" /></button>
-  <button class="flyout-btn" id="btnMeasureArea" data-tip="Measure Area"><img src="https://image2url.com/r2/default/images/1771898585408-3cb2ff56-bccf-444e-a5b2-8132af8d1cd1.png" /></button>
-  <button class="flyout-btn" id="btnMeasureHeight" data-tip="Measure Height"><img src="https://image2url.com/r2/default/images/1771898633444-7da0a47c-e758-4ff6-b284-a69dd8e1c8d7.png" /></button>
-  <button class="flyout-btn" id="btnClearMeasures" data-tip="Clear Measurements"><img src="https://image2url.com/r2/default/images/1772021121894-897c714d-4bed-41ed-ba3f-ee0127d5c89d.png" /></button>
-</div>
-
-<!-- ── Main control panel ── -->
-<div class="panel expanded" id="controlPanel">
-  <div class="panel-toggle" id="panelToggle">&#8249;</div>
-  <div class="row">
-    <select id="typeSelect">
-      <option value="">Select</option>
-      <option value="Nov-2025">Nov-2025</option>
-      <option value="Jan-2026">Jan-2026</option>
-    </select>
-  </div>
-  <div class="row" id="modelRow" style="display:none;">
-    <select id="modelSelect"></select>
-  </div>
-  <div class="row"><button id="btnClearModels">Clear All Models</button></div>
-  <div class="row"><button id="btnZoom">Zoom to Model</button></div>
-  <div class="footer"><span id="statusText">Loading…</span></div>
-</div>
-
-<!-- ── Layers panel ── -->
-<div class="panel expanded" id="layersPanel">
-  <div class="panel-toggle" id="layersPanelToggle">&#8249;</div>
-  <div class="layers-title">Layers</div>
-
-  <label class="layer-item" id="item220">
-    <input type="checkbox" id="chk220" />
-    <span>220 Boundary</span>
-  </label>
-  <label class="layer-item" id="itemVillages">
-    <input type="checkbox" id="chkVillages" />
-    <span>Villages Boundary</span>
-  </label>
-  <label class="layer-item" id="itemTrunk">
-    <input type="checkbox" id="chkTrunk" />
-    <span>Trunk Roads</span>
-  </label>
-</div>
-
-<!-- ── Right-side sub-layer panel ── -->
-<div id="rightPanel">
-  <div class="right-panel-title" id="rightPanelTitle">Villages</div>
-  <div id="rightPanelContent"></div>
-</div>
+<div id="cesiumContainer"></div>
+<div id="slaveLabel">Slave View — Camera Synced</div>
+<div id="syncDot"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.127.0/Cesium.js"></script>
 <script>
-  /* ── CONFIG ── */
-  const PROJECT_LOCATION     = { lon: 80.496093, lat: 16.542750, height: 350 };
-  const HEIGHT_OFFSET_METERS = 60;
-  const ORTHO_TMS_URL        = "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/3D_Jan2026/2D-Ortho-Geotiff/2D_ortho_AGC_Building_Zone_27012026/";
+/* ═══════════════════════════════════════════════════════════════════
+   CONFIG — must match master
+═══════════════════════════════════════════════════════════════════ */
+const PROJECT_LOCATION = { lon: 80.496093, lat: 16.542750, height: 350 };
+const ORTHO_TMS_URL    = "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/3D_Jan2026/2D-Ortho-Geotiff/2D_ortho_AGC_Building_Zone_27012026/";
+const MASTER_ORIGIN    = window.location.origin; // same domain
 
-  Cesium.Ion.defaultAccessToken = undefined;
+Cesium.Ion.defaultAccessToken = undefined;
 
-  const creditDiv = document.createElement("div");
-  creditDiv.style.display = "none";
-  document.body.appendChild(creditDiv);
+const creditDiv = document.createElement("div");
+creditDiv.style.display = "none";
+document.body.appendChild(creditDiv);
 
-  const viewer = new Cesium.Viewer("cesiumContainer", {
-    terrain:              undefined,
-    timeline:             false,
-    animation:            false,
-    geocoder:             false,
-    homeButton:           true,
-    sceneModePicker:      true,
-    baseLayerPicker:      false,
-    navigationHelpButton: false,
-    infoBox:              false,
-    selectionIndicator:   false,
-    creditContainer:      creditDiv
-  });
+/* ═══════════════════════════════════════════════════════════════════
+   VIEWER — minimal, passive, no controls needed
+═══════════════════════════════════════════════════════════════════ */
+const viewer = new Cesium.Viewer("cesiumContainer", {
+  terrain:              undefined,
+  timeline:             false,
+  animation:            false,
+  geocoder:             false,
+  homeButton:           false,
+  sceneModePicker:      false,   // slave matches master's scene mode
+  baseLayerPicker:      false,
+  navigationHelpButton: false,
+  infoBox:              false,
+  selectionIndicator:   false,
+  creditContainer:      creditDiv
+});
 
-  function killCredits() {
-    document.querySelectorAll(
-      ".cesium-viewer-bottom,.cesium-credit-logoContainer,.cesium-credit-expand-link," +
-      ".cesium-widget-credits,.cesium-credit-textContainer,.cesium-credit-text"
-    ).forEach(el => { el.style.cssText = "display:none!important"; });
-  }
-  [0,300,700,1500,3000].forEach(t => setTimeout(killCredits, t));
+/* ── Kill credits ── */
+function killCredits() {
+  document.querySelectorAll(
+    ".cesium-viewer-bottom,.cesium-credit-logoContainer,.cesium-credit-expand-link," +
+    ".cesium-widget-credits,.cesium-credit-textContainer,.cesium-credit-text"
+  ).forEach(el => { el.style.cssText = "display:none!important"; });
+}
+[0,300,700,1500,3000].forEach(t => setTimeout(killCredits, t));
 
-  /* ── Position custom toolbar to LEFT of Cesium native buttons ── */
-  function positionCustomToolbar() {
-    const cesiumToolbar = document.querySelector(".cesium-viewer-toolbar");
-    const customToolbar = document.getElementById("customToolbar");
-    if (!cesiumToolbar || !customToolbar) return;
-    const firstBtn = cesiumToolbar.querySelector("button, .cesium-button");
-    const ref = firstBtn || cesiumToolbar;
-    const rect = ref.getBoundingClientRect();
-    const ourH = customToolbar.offsetHeight || 33;
-    const topPx   = rect.top + (rect.height - ourH) / 2;
-    const rightPx  = window.innerWidth - rect.left + 2;
-    customToolbar.style.top   = Math.max(0, topPx) + "px";
-    customToolbar.style.right = rightPx + "px";
-    customToolbar.style.left  = "auto";
-
-    /* ── Position measure flyout aligned to measure toggle btn ── */
-    repositionFlyout();
-  }
-
-  const toolbarObs = new MutationObserver(() => {
-    if (document.querySelector(".cesium-viewer-toolbar")) {
-      toolbarObs.disconnect();
-      setTimeout(positionCustomToolbar, 50);
-    }
-  });
-  toolbarObs.observe(document.body, { childList: true, subtree: true });
-  window.addEventListener("resize", () => {
-    positionCustomToolbar();
-    if (measureFlyout.classList.contains("open")) repositionFlyout();
-  });
-  [300, 700, 1500].forEach(t => setTimeout(positionCustomToolbar, t));
-
-  /* ── BASEMAP ── */
-  viewer.imageryLayers.removeAll();
-  viewer.imageryLayers.addImageryProvider(
-    new Cesium.OpenStreetMapImageryProvider({ url: "https://a.tile.openstreetmap.org/" })
-  );
-  (async () => {
-    try {
-      const p = await Cesium.TileMapServiceImageryProvider.fromUrl(ORTHO_TMS_URL, {
-        fileExtension: "png", maximumLevel: 22, flipXY: false
-      });
-      viewer.imageryLayers.addImageryProvider(p);
-      setStatus("Ortho basemap loaded");
-    } catch { setStatus("OSM basemap"); }
-  })();
-
-  viewer.camera.setView({
-    destination: Cesium.Cartesian3.fromDegrees(PROJECT_LOCATION.lon, PROJECT_LOCATION.lat, PROJECT_LOCATION.height),
-    orientation: { heading: Cesium.Math.toRadians(0), pitch: Cesium.Math.toRadians(-35), roll: 0 }
-  });
-  viewer.homeButton.viewModel.command.beforeExecute.addEventListener((e) => {
-    e.cancel = true;
-    viewer.camera.flyTo({
-      destination: Cesium.Cartesian3.fromDegrees(PROJECT_LOCATION.lon, PROJECT_LOCATION.lat, PROJECT_LOCATION.height),
-      orientation: { heading: Cesium.Math.toRadians(0), pitch: Cesium.Math.toRadians(-35), roll: 0 },
-      duration: 1.2
+/* ── Basemap ── */
+viewer.imageryLayers.removeAll();
+viewer.imageryLayers.addImageryProvider(
+  new Cesium.OpenStreetMapImageryProvider({ url: "https://a.tile.openstreetmap.org/" })
+);
+(async () => {
+  try {
+    const p = await Cesium.TileMapServiceImageryProvider.fromUrl(ORTHO_TMS_URL, {
+      fileExtension: "png", maximumLevel: 22, flipXY: false
     });
-  });
-  viewer.scene.globe.depthTestAgainstTerrain = false;
+    viewer.imageryLayers.addImageryProvider(p);
+  } catch { /* fall back to OSM */ }
+})();
 
-  const statusText = document.getElementById("statusText");
-  function setStatus(t) { statusText.textContent = t; }
+/* ── Initial camera matching master's default ── */
+viewer.camera.setView({
+  destination: Cesium.Cartesian3.fromDegrees(PROJECT_LOCATION.lon, PROJECT_LOCATION.lat, PROJECT_LOCATION.height),
+  orientation: { heading: Cesium.Math.toRadians(0), pitch: Cesium.Math.toRadians(-35), roll: 0 }
+});
+viewer.scene.globe.depthTestAgainstTerrain = false;
 
-  /* ── PANEL TOGGLE FACTORY ── */
-  function makePanelToggle(panelEl, tabEl) {
-    let isOpen = true;
-    function render() {
-      panelEl.classList.toggle("expanded", isOpen);
-      panelEl.classList.toggle("collapsed", !isOpen);
-      tabEl.textContent = isOpen ? "\u2039" : "\u203a";
-    }
-    tabEl.addEventListener("click", () => { isOpen = !isOpen; render(); });
-    render();
-  }
-  makePanelToggle(document.getElementById("controlPanel"), document.getElementById("panelToggle"));
-  makePanelToggle(document.getElementById("layersPanel"),  document.getElementById("layersPanelToggle"));
+/* ═══════════════════════════════════════════════════════════════════
+   CAMERA SYNC — SLAVE  (Page 2)
 
-  function repositionLayersPanel() {
-    const r = document.getElementById("controlPanel").getBoundingClientRect();
-    document.getElementById("layersPanel").style.top = (r.bottom + 10) + "px";
-  }
-  requestAnimationFrame(() => setTimeout(repositionLayersPanel, 60));
-  window.addEventListener("resize", repositionLayersPanel);
+   Receives CESIUM_CAMERA_SYNC messages from the master window
+   and applies them WITHOUT triggering its own camera events back.
 
-  /* ── RIGHT PANEL DATA ── */
-  const RIGHT_PANEL_DATA = {
-    "villages": {
-      title: "Villages Boundary",
-      items: [
-        "Abbarajupalem","Ainavolu","Anantavaram","Borupalem","Dondapadu",
-        "Kondamarajupalem","Krishnayyapalem","Kuragallu","Lingayapalem",
-        "Malkapuram","Mandadam","Mangalagiri","Nekkallu","Nelapadu",
-        "Nidamarru","Nowluru","Penumaka","Pichikalapalem","Rayapudi",
-        "Sakhamuru","Tadepalli","Tulluru","Uddandarayanipalem","Undavalli",
-        "Velagapudi","Venkatapalem"
-      ]
-    },
-    "220": {
-      title: "220 Boundary",
-      items: ["Zone A","Zone B","Zone C","Zone D","Zone E","Zone F"]
-    },
-    "trunk": {
-      title: "Trunk Roads",
-      items: ["NH-16","NH-65","MDR0119","MDR0194","MDR029","E4","E5","E6","E7","E8","E9","E10","E11","N11","N12","N15","N17"]
-    }
-  };
+   Loop prevention:
+   - We never postMessage anything back to the master from here.
+   - The _isSyncing guard in the master prevents its own listeners
+     from re-broadcasting an update it already sent.
+   
+   Smooth application:
+   - We use viewer.camera.setView() (instant, no animation jank)
+     for high-frequency changed events.
+   - We do NOT use flyTo() here — it causes lag + shaking on rapid
+     incoming messages.
+   
+   Performance:
+   - requestAnimationFrame batching: if messages arrive faster than
+     one frame, we only apply the last one per frame.
+═══════════════════════════════════════════════════════════════════ */
 
-  const rightPanel        = document.getElementById("rightPanel");
-  const rightPanelTitle   = document.getElementById("rightPanelTitle");
-  const rightPanelContent = document.getElementById("rightPanelContent");
+let _pendingCamera   = null;  // latest unprocessed camera payload
+let _rafScheduled    = false; // true if rAF is queued
 
-  let activeRightKey = null;
+const syncDot = document.getElementById("syncDot");
+let _dotTimer = null;
 
-  function openRightPanel(key) {
-    const data = RIGHT_PANEL_DATA[key];
-    if (!data) return;
-    activeRightKey = key;
-    rightPanelTitle.textContent = data.title;
-    rightPanelContent.innerHTML = "";
-    data.items.forEach(name => {
-      const id = "sub_" + name.replace(/\s+/g,"_");
-      const div = document.createElement("div");
-      div.className = "sub-layer-item";
-      div.innerHTML = `<input type="checkbox" id="${id}"><label for="${id}">${name}</label>`;
-      rightPanelContent.appendChild(div);
-    });
-    rightPanel.classList.add("open");
-  }
+function pulseDot() {
+  syncDot.classList.add("pulse");
+  clearTimeout(_dotTimer);
+  _dotTimer = setTimeout(() => syncDot.classList.remove("pulse"), 120);
+}
 
-  function closeRightPanel() {
-    rightPanel.classList.remove("open");
-    activeRightKey = null;
-  }
-
-  /* ── LAYER CHECKBOX LOGIC ── */
-  const layerMap = {
-    "chk220":       "220",
-    "chkVillages":  "villages",
-    "chkTrunk":     "trunk"
-  };
-  const itemMap = {
-    "chk220":       "item220",
-    "chkVillages":  "itemVillages",
-    "chkTrunk":     "itemTrunk"
-  };
-
-  Object.keys(layerMap).forEach(chkId => {
-    const chk  = document.getElementById(chkId);
-    const item = document.getElementById(itemMap[chkId]);
-    const key  = layerMap[chkId];
-
-    chk.addEventListener("change", (e) => {
-      e.stopPropagation();
-      if (chk.checked) {
-        item.classList.add("active");
-        openRightPanel(key);
-      } else {
-        item.classList.remove("active");
-        if (activeRightKey === key) closeRightPanel();
+/**
+ * Apply a camera payload immediately via setView.
+ * setView is synchronous, instant, and does NOT fire camera events,
+ * so it cannot create a feedback loop.
+ */
+function applyCamera(cam) {
+  try {
+    viewer.camera.setView({
+      destination: Cesium.Cartesian3.fromDegrees(cam.lon, cam.lat, cam.alt),
+      orientation: {
+        heading: cam.heading,
+        pitch:   cam.pitch,
+        roll:    cam.roll
       }
     });
-  });
-
-  /* ── SPLIT SCREEN ── */
-  const btnSplit    = document.getElementById("btnSplit");
-  const cesiumCont  = document.getElementById("cesiumContainer");
-  const secondCont  = document.getElementById("secondViewContainer");
-  const secondFrame = document.getElementById("secondViewFrame");
-  let isSplit = false;
-
-  btnSplit.addEventListener("click", () => {
-    isSplit = !isSplit;
-    cesiumCont.classList.toggle("split",  isSplit);
-    secondCont.classList.toggle("active", isSplit);
-    btnSplit.classList.toggle("active",   isSplit);
-    if (isSplit) {
-      setTimeout(() => { secondFrame.src = "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/coview1/split-viewer.html"; }, 100);
-      setStatus("Split screen active");
-    } else { secondFrame.src = ""; setStatus("Ready"); }
-  });
-
-  /* ── MEASURE FLYOUT ── */
-  const btnMeasureToggle = document.getElementById("btnMeasureToggle");
-  const measureFlyout    = document.getElementById("measureFlyout");
-
-  function repositionFlyout() {
-    const btnRect = btnMeasureToggle.getBoundingClientRect();
-    if (!btnRect.width) return;
-
-    // Make flyout visible temporarily to measure its width
-    const wasHidden = !measureFlyout.classList.contains("open");
-    if (wasHidden) {
-      measureFlyout.style.visibility = "hidden";
-      measureFlyout.style.display    = "flex";
-    }
-    const flyW = measureFlyout.offsetWidth || (4 * 29 + 3 * 4 + 12); // 4 btns + gaps + padding
-    if (wasHidden) {
-      measureFlyout.style.display    = "";
-      measureFlyout.style.visibility = "";
-    }
-
-    // Centre flyout horizontally on the measure toggle button
-    let left = btnRect.left + (btnRect.width / 2) - (flyW / 2);
-
-    // Clamp so it never goes off-screen
-    const margin = 6;
-    left = Math.max(margin, Math.min(left, window.innerWidth - flyW - margin));
-
-    measureFlyout.style.top   = (btnRect.bottom + 6) + "px";
-    measureFlyout.style.left  = left + "px";
-    measureFlyout.style.right = "auto";
+    viewer.scene.requestRender();
+    pulseDot();
+  } catch (err) {
+    console.warn("[Slave] applyCamera error:", err);
   }
+}
 
-  function openFlyout() {
-    measureFlyout.classList.add("open");
-    btnMeasureToggle.classList.add("active");
-    // Reposition after it's visible so offsetWidth is accurate
-    requestAnimationFrame(repositionFlyout);
-  }
-
-  function closeFlyout() {
-    measureFlyout.classList.remove("open");
-    btnMeasureToggle.classList.remove("active");
-  }
-
-  btnMeasureToggle.addEventListener("click", (e) => {
-    e.stopPropagation();
-    measureFlyout.classList.contains("open") ? closeFlyout() : openFlyout();
-  });
-
-  document.addEventListener("click", (e) => {
-    if (!measureFlyout.contains(e.target) && e.target !== btnMeasureToggle) {
-      closeFlyout();
+/**
+ * rAF-batched apply: absorbs bursts of messages, applies only the
+ * latest camera state per animation frame (~16ms at 60fps).
+ * This is key to avoiding stuttering when master fires many events.
+ */
+function scheduleApply() {
+  if (_rafScheduled) return;
+  _rafScheduled = true;
+  requestAnimationFrame(() => {
+    _rafScheduled = false;
+    if (_pendingCamera) {
+      applyCamera(_pendingCamera);
+      _pendingCamera = null;
     }
   });
+}
 
-  /* ── TILESET LOADING ── */
-  let currentTilesets = [];
+/**
+ * postMessage listener.
+ * Security: always check origin and message type.
+ */
+window.addEventListener("message", (event) => {
+  // ── Security: reject cross-origin messages ──
+  if (event.origin !== MASTER_ORIGIN) return;
 
-  async function loadTileset(url) {
-    if (!url || !url.endsWith(".json")) return;
-    setStatus("Loading…");
-    try {
-      const tileset = await Cesium.Cesium3DTileset.fromUrl(url, { maximumScreenSpaceError: 2, maximumMemoryUsage: 4096 });
-      const added = viewer.scene.primitives.add(tileset);
-      currentTilesets.push(added);
-      await tileset.readyPromise;
-      const bs = tileset.boundingSphere;
-      const c  = Cesium.Cartographic.fromCartesian(bs.center);
-      const surface = Cesium.Cartesian3.fromRadians(c.longitude, c.latitude, c.height);
-      const offset  = Cesium.Cartesian3.fromRadians(c.longitude, c.latitude, c.height + HEIGHT_OFFSET_METERS);
-      tileset.modelMatrix = Cesium.Matrix4.fromTranslation(
-        Cesium.Cartesian3.subtract(offset, surface, new Cesium.Cartesian3())
-      );
-      const combined = Cesium.BoundingSphere.fromBoundingSpheres(
-        currentTilesets.map(ts => ({ center: ts.boundingSphere.center, radius: ts.boundingSphere.radius }))
-      );
-      viewer.scene.requestRender();
-      viewer.camera.flyToBoundingSphere(combined, {
-        duration: 1.2, offset: new Cesium.HeadingPitchRange(0, Cesium.Math.toRadians(-35), combined.radius * 2.5)
-      });
-      setStatus("Loaded (" + currentTilesets.length + " model" + (currentTilesets.length > 1 ? "s" : "") + ")");
-    } catch (err) {
-      console.error(err); setStatus("Load failed"); alert("Failed to load tileset:\n" + url);
-    }
+  const msg = event.data;
+  if (!msg || msg.type !== "CESIUM_CAMERA_SYNC") return;
+
+  const cam = msg.camera;
+  if (
+    typeof cam.lon !== "number" || typeof cam.lat !== "number" ||
+    typeof cam.alt !== "number" || typeof cam.heading !== "number" ||
+    typeof cam.pitch !== "number" || typeof cam.roll !== "number"
+  ) {
+    console.warn("[Slave] Received malformed camera payload:", cam);
+    return;
   }
 
-  const BASE_URL = "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/amaravati-3d-data-files";
-  const MODEL_OPTIONS = {
-    "Nov-2025": [
-      { label: "Go 1 and 2 Housing (Tower A)",                                    url: BASE_URL + "/tower_A/tileset.json" },
-      { label: "Non Gazetted Officers Housing (Tower B)",                          url: BASE_URL + "/tower_B/Non+Gazetted+Officers+Housing/tileset.json" },
-      { label: "Project Office_PEB4_MLA_MLC_MP_AIS-Housing_Princ-Sec (Tower C)", url: BASE_URL + "/tower_C/Project+Office_PEB4_MLA_MLC_MP_AIS-Housing_Princ-Sec/tileset.json" }
-    ],
-    "Jan-2026": [
-      { label: "4 PEB Structures near Project Office", url: "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/amaravati-3d-data-files/4_PEB_Structures_near_project_office-Jan26/tileset.json" },
-      { label: "Assembly",                             url: "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/3D_Jan2026/Assembly-Jan26/tileset.json" },
-      { label: "Bungalow for Principal Secretaries",  url: "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/3D_Jan2026/Bunglow_for_Principal_Secretaries-Jan26/tileset.json" },
-      { label: "Bungalows for Hon'ble Ministers",     url: "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/3D_Jan2026/Bunglows_for_Hon'ble_Ministers-Jan26/tileset.json" },
-      { label: "GAD Towers",                          url: "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/3D_Jan2026/GAD_Towers-Jan26/tileset.json" },
-      { label: "GO I & II Housing",                   url: "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/3D_Jan2026/GO_I%26II_housing-Jan26/tileset.json" },
-      { label: "Group D Housing",                     url: "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/3D_Jan2026/Group_D_Housing-Jan26/tileset.json" },
-      { label: "Happy Nest",                          url: "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/3D_Jan2026/Happy_Nest-Jan26/tileset.json" },
-      { label: "High Court",                          url: "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/3D_Jan2026/High_Court-Jan26/tileset.json" },
-      { label: "Hon'ble AIS Officers Housing",        url: "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/3D_Jan2026/Hon'ble+_AIS_Officers_Housing-Jan26/tileset.json" },
-      { label: "Hon'ble MLAs & MLCs Housing",         url: "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/3D_Jan2026/Hon'ble_MLAs%26MLCs_Housing-Jan26/tileset.json" },
-      { label: "Non Gazetted Officers Housing",       url: "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/3D_Jan2026/Non_Gazetted_Officers_Housing-Jan26/tileset.json" },
-      { label: "Project Office",                      url: "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/3D_Jan2026/Project_Office-Jan26/tileset.json" },
-      { label: "Parade Ground",                       url: "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/3D_Jan2026/Perade_Ground-Jan26/tileset.json" }
-    ]
-  };
+  // Queue the update; scheduleApply batches rapid-fire messages
+  _pendingCamera = cam;
+  scheduleApply();
+});
 
-  const typeSelect  = document.getElementById("typeSelect");
-  const modelSelect = document.getElementById("modelSelect");
-  const modelRow    = document.getElementById("modelRow");
-
-  function updateModelOptions() {
-    const type = typeSelect.value;
-    modelSelect.innerHTML = "";
-    modelRow.style.display = type ? "flex" : "none";
-    if (!type) return;
-    const ph = document.createElement("option");
-    ph.value = ""; ph.textContent = "Select model"; modelSelect.appendChild(ph);
-    MODEL_OPTIONS[type].forEach(opt => {
-      const o = document.createElement("option"); o.value = opt.url; o.textContent = opt.label; modelSelect.appendChild(o);
-    });
-  }
-  typeSelect.addEventListener("change", updateModelOptions);
-  modelSelect.addEventListener("change", (e) => { if (e.target.value) loadTileset(e.target.value); });
-
-  document.getElementById("btnZoom").addEventListener("click", async () => {
-    if (!currentTilesets.length) return alert("Load at least one model first.");
-    setStatus("Zooming…");
-    const combined = Cesium.BoundingSphere.fromBoundingSpheres(
-      currentTilesets.map(ts => ({ center: ts.boundingSphere.center, radius: ts.boundingSphere.radius }))
-    );
-    await viewer.camera.flyToBoundingSphere(combined, {
-      duration: 1.2, offset: new Cesium.HeadingPitchRange(0, Cesium.Math.toRadians(-35), combined.radius * 2.5)
-    });
-    setStatus("Loaded (" + currentTilesets.length + " model" + (currentTilesets.length > 1 ? "s" : "") + ")");
-  });
-  document.getElementById("btnClearModels").addEventListener("click", () => {
-    for (const ts of currentTilesets) viewer.scene.primitives.remove(ts);
-    currentTilesets = []; setStatus("All models cleared");
-  });
-
-  /* ── MEASUREMENT ── */
-  const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
-  let mode = null, activePositions = [], activeEntity = null, labelEntity = null;
-  const measureEntities = [];
-
-  function pickPos(sp) {
-    const s = viewer.scene, p = s.pickPosition(sp);
-    return Cesium.defined(p) ? p : s.globe.pick(viewer.camera.getPickRay(sp), s);
-  }
-  function toCarto(p) { return Cesium.Cartographic.fromCartesian(p); }
-  function fmtM(m) { return !isFinite(m) ? "0 m" : m >= 1000 ? (m/1000).toFixed(3)+" km" : m.toFixed(2)+" m"; }
-  function surfaceDist(pts) {
-    let d = 0;
-    for (let i = 1; i < pts.length; i++)
-      d += new Cesium.EllipsoidGeodesic(toCarto(pts[i-1]), toCarto(pts[i])).surfaceDistance;
-    return d;
-  }
-  function toENU2D(pts) {
-    const inv = Cesium.Matrix4.inverse(Cesium.Transforms.eastNorthUpToFixedFrame(pts[0]), new Cesium.Matrix4());
-    return pts.map(p => { const l = Cesium.Matrix4.multiplyByPoint(inv, p, new Cesium.Cartesian3()); return {x:l.x,y:l.y}; });
-  }
-  function polyArea(pts) {
-    if (pts.length < 3) return 0;
-    const e = toENU2D(pts); let s = 0;
-    for (let i = 0; i < e.length; i++) { const j=(i+1)%e.length; s += e[i].x*e[j].y - e[j].x*e[i].y; }
-    return Math.abs(s)/2;
-  }
-  function fmtA(m2) { return !isFinite(m2) ? "0 m²" : m2>=1e6 ? (m2/1e6).toFixed(4)+" km²" : m2.toFixed(2)+" m²"; }
-
-  function upsertLabel(text, position) {
-    if (!labelEntity) {
-      labelEntity = viewer.entities.add({
-        position, label: {
-          text, font: "14px sans-serif", showBackground: true,
-          backgroundPadding: new Cesium.Cartesian2(8,6),
-          verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-          pixelOffset: new Cesium.Cartesian2(0,-12)
-        }
-      });
-      measureEntities.push(labelEntity);
-    } else { labelEntity.position = position; labelEntity.label.text = text; }
-  }
-  function clearActive() {
-    if (activeEntity) { viewer.entities.remove(activeEntity); activeEntity = null; }
-    if (labelEntity)  { viewer.entities.remove(labelEntity);  labelEntity  = null; }
-    activePositions = [];
-  }
-  function clearAllMeasurements() {
-    clearActive();
-    for (const e of measureEntities) viewer.entities.remove(e);
-    measureEntities.length = 0;
-  }
-
-  const flyoutBtns = {
-    distance: document.getElementById("btnMeasureDistance"),
-    area:     document.getElementById("btnMeasureArea"),
-    height:   document.getElementById("btnMeasureHeight")
-  };
-  function setMode(newMode) {
-    clearActive();
-    Object.values(flyoutBtns).forEach(b => b && b.classList.remove("active"));
-    mode = newMode;
-    if (newMode && flyoutBtns[newMode]) flyoutBtns[newMode].classList.add("active");
-    setStatus(mode ? "Measure: " + mode : "Ready");
-  }
-
-  handler.setInputAction((click) => {
-    if (!mode) return;
-    const pos = pickPos(click.position);
-    if (!Cesium.defined(pos)) return;
-    if (activePositions.length === 0) {
-      activePositions.push(pos);
-      if (mode==="distance") activeEntity = viewer.entities.add({ polyline: { positions: new Cesium.CallbackProperty(()=>activePositions,false), width:3 }});
-      if (mode==="area")     activeEntity = viewer.entities.add({ polygon:  { hierarchy: new Cesium.CallbackProperty(()=>new Cesium.PolygonHierarchy(activePositions),false), outline:true }});
-      if (mode==="height")   activeEntity = viewer.entities.add({ polyline: { positions: new Cesium.CallbackProperty(()=>activePositions,false), width:3 }});
-      measureEntities.push(activeEntity);
-      if (mode==="distance") upsertLabel("Distance: 0 m", pos);
-      if (mode==="area")     upsertLabel("Area: 0 m²", pos);
-      if (mode==="height")   upsertLabel("ΔHeight: 0 m", pos);
-      return;
-    }
-    if (mode==="height" && activePositions.length>=2) return;
-    activePositions.push(pos);
-    if (mode==="distance")      upsertLabel("Distance: "+fmtM(surfaceDist(activePositions)), pos);
-    else if (mode==="area")     upsertLabel("Area: "+fmtA(polyArea(activePositions)), pos);
-    else if (mode==="height") {
-      const c1=toCarto(activePositions[0]), c2=toCarto(activePositions[1]);
-      upsertLabel("ΔHeight: "+fmtM(Math.abs((c2.height||0)-(c1.height||0))), pos);
-    }
-  }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
-
-  handler.setInputAction((mv) => {
-    if (!mode || !activePositions.length || mode==="height") return;
-    const pos = pickPos(mv.endPosition);
-    if (!Cesium.defined(pos)) return;
-    const preview = [...activePositions, pos];
-    if (mode==="distance") upsertLabel("Distance: "+fmtM(surfaceDist(preview)), pos);
-    else if (mode==="area") upsertLabel("Area: "+fmtA(polyArea(preview)), pos);
-  }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
-
-  handler.setInputAction(() => {
-    if (!mode || activePositions.length<2 || (mode==="area" && activePositions.length<3)) return;
-    setMode(null);
-  }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
-
-  window.addEventListener("keydown", (e) => { if (e.key==="Escape") { clearActive(); setMode(null); } });
-
-  document.getElementById("btnMeasureDistance").addEventListener("click", () => setMode("distance"));
-  document.getElementById("btnMeasureArea").addEventListener("click",     () => setMode("area"));
-  document.getElementById("btnMeasureHeight").addEventListener("click",   () => setMode("height"));
-  document.getElementById("btnClearMeasures").addEventListener("click",   () => { clearAllMeasurements(); setStatus("Measurements cleared"); });
+/* ═══════════════════════════════════════════════════════════════════
+   OPTIONAL: Disable user input on slave so it stays purely passive.
+   Comment out if you want users to be able to interact with slave too.
+═══════════════════════════════════════════════════════════════════ */
+viewer.scene.screenSpaceCameraController.enableRotate    = false;
+viewer.scene.screenSpaceCameraController.enableTranslate = false;
+viewer.scene.screenSpaceCameraController.enableZoom      = false;
+viewer.scene.screenSpaceCameraController.enableTilt      = false;
+viewer.scene.screenSpaceCameraController.enableLook      = false;
 </script>
 </body>
 </html>
