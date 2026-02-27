@@ -88,7 +88,17 @@ viewer.camera.setView({
 });
 viewer.scene.globe.depthTestAgainstTerrain = false;
 
-/* ── Disable user camera input ─ slave follows master only ── */
+/* ── Signal to master that slave is ready to receive joystick messages ── */
+// Use a small delay to ensure Cesium viewer is initialised before messages arrive
+function announceReady() {
+  if (window.parent && window.parent !== window) {
+    window.parent.postMessage({ type: "JOYSTICK_SLAVE_READY" }, "*");
+  }
+}
+// Announce immediately and again after a short delay as a fallback
+announceReady();
+setTimeout(announceReady, 500);
+setTimeout(announceReady, 1500);
 viewer.scene.screenSpaceCameraController.enableRotate    = false;
 viewer.scene.screenSpaceCameraController.enableTranslate = false;
 viewer.scene.screenSpaceCameraController.enableZoom      = false;
