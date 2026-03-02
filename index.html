@@ -1,51 +1,77 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="utf-8"/>
   <title>3D Map Viewer — Slave</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link href="https://cesium.com/downloads/cesiumjs/releases/1.127/Build/Cesium/Widgets/widgets.css" rel="stylesheet" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.127/Build/Cesium/Widgets/widgets.css" rel="stylesheet"/>
   <style>
-    html, body { width:100%; height:100%; margin:0; padding:0; overflow:hidden; background:#000; }
-    #cesiumContainer { width:100%; height:100%; }
-
+    html,body{width:100%;height:100%;margin:0;padding:0;overflow:hidden;background:#000}
+    #cesiumContainer{width:100%;height:100%}
     .cesium-viewer-bottom,.cesium-credit-logoContainer,.cesium-credit-expand-link,
     .cesium-credit-lightbox-overlay,.cesium-credit-lightbox,.cesium-widget-credits,
-    .cesium-credit-textContainer,.cesium-credit-text,[class*="cesium-credit"]
-    { display:none !important; }
+    .cesium-credit-textContainer,.cesium-credit-text,[class*="cesium-credit"],
+    .cesium-viewer-toolbar{display:none!important}
 
-    /* No toolbar needed on slave */
-    .cesium-viewer-toolbar { display:none !important; }
-
-    /* Joystick activity pulse dot */
-    #joyDot {
-      position:fixed; bottom:10px; right:10px; z-index:100;
-      width:8px; height:8px; border-radius:50%;
-      background:#222;
-      transition:background .1s, box-shadow .1s;
-      pointer-events:none;
+    /* LIVE SYNC badge */
+    #syncLabel{
+      position:fixed;top:6px;left:50%;transform:translateX(-50%);
+      z-index:200;display:flex;align-items:center;gap:6px;
+      background:rgba(0,0,0,.70);border:1px solid rgba(0,229,255,.30);
+      border-radius:20px;padding:3px 12px;
+      font:700 10px/1.4 system-ui,sans-serif;letter-spacing:.1em;text-transform:uppercase;
+      color:rgba(0,229,255,.80);pointer-events:none;
     }
-    #joyDot.pulse { background:#00e5ff; box-shadow:0 0 8px #00e5ff; }
+    #syncLabel .dot{
+      width:7px;height:7px;border-radius:50%;
+      background:#444;box-shadow:none;flex-shrink:0;
+      transition:background .15s, box-shadow .15s;
+    }
+    #syncLabel .dot.active{background:#00e5ff;box-shadow:0 0 8px #00e5ff}
+
+    /* MONTH LABEL — shown when master selects a month */
+    #monthLabel{
+      position:fixed;
+      top:42px;
+      left:50%;
+      transform:translateX(-50%);
+      z-index:300;
+      display:none;
+      align-items:center;
+      gap:8px;
+      background:rgba(0,0,0,.80);
+      border:1.5px solid rgba(255,200,0,.55);
+      border-radius:24px;
+      padding:5px 20px;
+      font:800 13px/1.5 system-ui,sans-serif;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      color:#ffc800;
+      pointer-events:none;
+      white-space:nowrap;
+      box-shadow:0 2px 18px rgba(255,200,0,.18);
+    }
+    #monthLabel.visible{display:flex}
+    #monthLabel .cal-icon{font-size:14px;line-height:1}
   </style>
 </head>
 <body>
 <div id="cesiumContainer"></div>
-<div id="joyDot"></div>
+
+<!-- Live sync indicator -->
+<div id="syncLabel"><div class="dot" id="dot"></div>LIVE SYNC</div>
+
+<!-- Month label — populated by master via postMessage -->
+<div id="monthLabel">
+  <span class="cal-icon">📅</span>
+  <span id="monthText"></span>
+</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.127.0/Cesium.js"></script>
 <script>
-/* ══════════════════════════════════════════════════════════
-   SLAVE PAGE — receives JOYSTICK_MOVE from master iframe
-
-   Key design choices:
-   - scene.preRender holds the LATEST joy values → 60fps smooth
-     regardless of how fast messages arrive (rAF-batched implicitly)
-   - cam.moveRight / cam.moveForward = synchronous, no events fired
-   - We NEVER postMessage back → zero loop risk
-   - User interaction disabled (purely joystick-driven)
-══════════════════════════════════════════════════════════ */
-
-const PROJECT_LOC   = { lon: 80.496093, lat: 16.542750, height: 350 };
+/* ═══════════ CONFIG ═══════════ */
+const PROJECT_LOC = {lon:80.496093, lat:16.542750, height:350};
+const HEIGHT_OFFSET = 60;
 const ORTHO_TMS_URL = "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/3D_Jan2026/2D-Ortho-Geotiff/2D_ortho_AGC_Building_Zone_27012026/";
 
 Cesium.Ion.defaultAccessToken = undefined;
@@ -61,90 +87,150 @@ const viewer = new Cesium.Viewer("cesiumContainer", {
   creditContainer:creditDiv
 });
 
-function killCredits() {
+function killCredits(){
   document.querySelectorAll(
-    ".cesium-viewer-bottom,.cesium-credit-logoContainer,.cesium-credit-expand-link," +
+    ".cesium-viewer-bottom,.cesium-credit-logoContainer,.cesium-credit-expand-link,"+
     ".cesium-widget-credits,.cesium-credit-textContainer,.cesium-credit-text"
-  ).forEach(el => { el.style.cssText = "display:none!important"; });
+  ).forEach(el=>el.style.cssText="display:none!important");
 }
-[0,300,700,1500,3000].forEach(t => setTimeout(killCredits, t));
+[0,300,700,1500,3000].forEach(t=>setTimeout(killCredits,t));
 
+/* Basemaps */
 viewer.imageryLayers.removeAll();
 viewer.imageryLayers.addImageryProvider(
-  new Cesium.OpenStreetMapImageryProvider({ url:"https://a.tile.openstreetmap.org/" })
+  new Cesium.OpenStreetMapImageryProvider({url:"https://a.tile.openstreetmap.org/"})
 );
-(async () => {
-  try {
-    const p = await Cesium.TileMapServiceImageryProvider.fromUrl(ORTHO_TMS_URL, {
-      fileExtension:"png", maximumLevel:22, flipXY:false
-    });
+(async()=>{
+  try{
+    const p = await Cesium.TileMapServiceImageryProvider.fromUrl(ORTHO_TMS_URL,
+      {fileExtension:"png",maximumLevel:22,flipXY:false});
     viewer.imageryLayers.addImageryProvider(p);
-  } catch {}
+  }catch(e){}
 })();
 
 viewer.camera.setView({
-  destination: Cesium.Cartesian3.fromDegrees(PROJECT_LOC.lon, PROJECT_LOC.lat, PROJECT_LOC.height),
-  orientation: { heading:0, pitch:Cesium.Math.toRadians(-35), roll:0 }
+  destination:Cesium.Cartesian3.fromDegrees(PROJECT_LOC.lon,PROJECT_LOC.lat,PROJECT_LOC.height),
+  orientation:{heading:0,pitch:Cesium.Math.toRadians(-35),roll:0}
 });
 viewer.scene.globe.depthTestAgainstTerrain = false;
 
-/* ── Signal to master that slave is ready to receive joystick messages ── */
-// Use a small delay to ensure Cesium viewer is initialised before messages arrive
-function announceReady() {
-  if (window.parent && window.parent !== window) {
-    window.parent.postMessage({ type: "JOYSTICK_SLAVE_READY" }, "*");
+/* ── Disable ALL manual camera input ── */
+const ctrl = viewer.scene.screenSpaceCameraController;
+ctrl.enableRotate=false; ctrl.enableTranslate=false; ctrl.enableZoom=false;
+ctrl.enableTilt=false;   ctrl.enableLook=false;
+
+/* ═══════════ TILESETS ═══════════ */
+let slaveTilesets = [];
+
+async function slaveLoadTileset(url){
+  if(!url||!url.endsWith(".json")) return;
+  try{
+    const ts = await Cesium.Cesium3DTileset.fromUrl(url,
+      {maximumScreenSpaceError:2, maximumMemoryUsage:4096});
+    slaveTilesets.push(viewer.scene.primitives.add(ts));
+    await ts.readyPromise;
+    const bs=ts.boundingSphere, c=Cesium.Cartographic.fromCartesian(bs.center);
+    const surf=Cesium.Cartesian3.fromRadians(c.longitude,c.latitude,c.height);
+    const off =Cesium.Cartesian3.fromRadians(c.longitude,c.latitude,c.height+HEIGHT_OFFSET);
+    ts.modelMatrix=Cesium.Matrix4.fromTranslation(
+      Cesium.Cartesian3.subtract(off,surf,new Cesium.Cartesian3()));
+    viewer.scene.requestRender();
+  }catch(err){console.error("Slave tileset:",err)}
+}
+
+function slaveClearTilesets(){
+  slaveTilesets.forEach(ts=>viewer.scene.primitives.remove(ts));
+  slaveTilesets=[];
+}
+
+/* ═══════════ SYNC DOT ═══════════ */
+const dot = document.getElementById("dot");
+let dotOff = null;
+function flashDot(){
+  dot.classList.add("active");
+  clearTimeout(dotOff);
+  dotOff = setTimeout(()=>dot.classList.remove("active"), 300);
+}
+
+/* ═══════════ MONTH LABEL ═══════════ */
+const monthLabel = document.getElementById("monthLabel");
+const monthText  = document.getElementById("monthText");
+
+function showMonthLabel(label){
+  if(label){
+    monthText.textContent = label;
+    monthLabel.classList.add("visible");
+  } else {
+    monthLabel.classList.remove("visible");
+    monthText.textContent = "";
   }
 }
-// Announce immediately and again after a short delay as a fallback
-announceReady();
-setTimeout(announceReady, 500);
-setTimeout(announceReady, 1500);
-viewer.scene.screenSpaceCameraController.enableRotate    = false;
-viewer.scene.screenSpaceCameraController.enableTranslate = false;
-viewer.scene.screenSpaceCameraController.enableZoom      = false;
-viewer.scene.screenSpaceCameraController.enableTilt      = false;
-viewer.scene.screenSpaceCameraController.enableLook      = false;
 
-/* ── Joystick state (written by message handler, read by preRender) ── */
-let joy = { x:0, y:0, speed:1 };
+/* ═══════════ CAMERA SYNC ═══════════ */
+let pending    = null;
+let rafPending = false;
 
-const dot = document.getElementById("joyDot");
-let dotTimer = null;
-function pulseDot() {
-  dot.classList.add("pulse");
-  clearTimeout(dotTimer);
-  dotTimer = setTimeout(() => dot.classList.remove("pulse"), 150);
-}
-
-/* ── Receive joystick messages from master ── */
-window.addEventListener("message", e => {
-  const d = e.data;
-  if (!d || d.type !== "JOYSTICK_MOVE") return;
-  // Validate
-  if (typeof d.x !== "number" || typeof d.y !== "number") return;
-  joy.x = d.x;
-  joy.y = d.y;
-  joy.speed = typeof d.speed === "number" ? d.speed : 1;
-  pulseDot();
-});
-
-/* ══════════════════════════════════════════════════════════
-   SCENE PRE-RENDER — apply joystick to slave camera
-   
-   We read joy.x / joy.y and apply the SAME speed value
-   that the master calculated (passed in the message), so
-   both cameras move the exact same distance per frame.
-══════════════════════════════════════════════════════════ */
-const DEAD_ZONE = 0.04;
-
-viewer.scene.preRender.addEventListener(() => {
-  const { x, y, speed } = joy;
-  if (Math.abs(x) < DEAD_ZONE && Math.abs(y) < DEAD_ZONE) return;
+function applyCamera(){
+  rafPending = false;
+  if(!pending) return;
+  const d = pending; pending = null;
 
   const cam = viewer.camera;
-  if (Math.abs(x) > DEAD_ZONE) cam.moveRight(x * speed);
-  if (Math.abs(y) > DEAD_ZONE) cam.moveForward(y * speed);
+  try{
+    cam.position.x  = d.px;  cam.position.y  = d.py;  cam.position.z  = d.pz;
+    cam.direction.x = d.dx;  cam.direction.y = d.dy;  cam.direction.z = d.dz;
+    cam.up.x        = d.ux;  cam.up.y        = d.uy;  cam.up.z        = d.uz;
+    Cesium.Cartesian3.cross(
+      new Cesium.Cartesian3(d.dx,d.dy,d.dz),
+      new Cesium.Cartesian3(d.ux,d.uy,d.uz),
+      cam.right
+    );
+    viewer.scene.requestRender();
+    flashDot();
+  }catch(e){
+    try{
+      cam.setView({
+        destination: new Cesium.Cartesian3(d.px,d.py,d.pz),
+        orientation:{
+          direction: new Cesium.Cartesian3(d.dx,d.dy,d.dz),
+          up:        new Cesium.Cartesian3(d.ux,d.uy,d.uz)
+        }
+      });
+      viewer.scene.requestRender();
+    }catch(_){}
+  }
+}
+
+/* ═══════════ MESSAGE HANDLER ═══════════ */
+window.addEventListener("message", e=>{
+  const d = e.data;
+  if(!d || !d.type) return;
+
+  if(d.type === "CAMERA_SYNC"){
+    pending = d;
+    if(!rafPending){
+      rafPending = true;
+      requestAnimationFrame(applyCamera);
+    }
+    return;
+  }
+
+  if(d.type === "LOAD_TILESET" && d.url){ slaveLoadTileset(d.url); return; }
+  if(d.type === "CLEAR_TILESETS"){ slaveClearTilesets(); return; }
+
+  /* ── Month label from master ── */
+  if(d.type === "DISPLAY_MONTH"){
+    showMonthLabel(d.label || "");
+    return;
+  }
 });
+
+/* ═══════════ READY SIGNAL ═══════════ */
+let readyCount = 0;
+const readyTimer = setInterval(()=>{
+  try{ window.parent.postMessage({type:"SLAVE_READY"},"*"); }catch(_){}
+  if(++readyCount >= 10) clearInterval(readyTimer);
+}, 1000);
 </script>
 </body>
 </html>
