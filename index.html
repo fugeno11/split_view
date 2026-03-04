@@ -13,37 +13,50 @@
     .cesium-credit-textContainer,.cesium-credit-text,[class*="cesium-credit"],
     .cesium-viewer-toolbar{display:none!important}
 
-    /* ── LIVE SYNC badge ── */
-    #syncLabel{
-      position:fixed; top:6px; left:50%; transform:translateX(-50%);
-      z-index:200; display:flex; align-items:center; gap:6px;
-      background:rgba(0,0,0,.70); border:1px solid rgba(0,229,255,.30);
-      border-radius:20px; padding:3px 12px;
-      font:700 10px/1.4 system-ui,sans-serif; letter-spacing:.1em; text-transform:uppercase;
-      color:rgba(0,229,255,.80); pointer-events:none;
+    /* ── LIVE SYNC badge — top centre of this pane ── */
+    #syncLabel {
+      position: fixed;
+      top: 6px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(0,0,0,.70);
+      border: 1px solid rgba(0,229,255,.30);
+      border-radius: 20px;
+      padding: 3px 12px;
+      font: 700 10px/1.4 system-ui, sans-serif;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: rgba(0,229,255,.80);
+      pointer-events: none;
     }
-    #syncLabel .dot{
-      width:7px; height:7px; border-radius:50%;
-      background:#444; box-shadow:none; flex-shrink:0;
-      transition:background .15s, box-shadow .15s;
+    #syncLabel .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: #444; flex-shrink: 0;
+      transition: background .15s, box-shadow .15s;
     }
-    #syncLabel .dot.active{background:#00e5ff; box-shadow:0 0 8px #00e5ff}
+    #syncLabel .dot.active { background: #00e5ff; box-shadow: 0 0 8px #00e5ff; }
 
-    /* ── MODEL INFO LABEL (top-centre of slave pane) ── */
+    /* ── MODEL INFO LABEL — top centre of slave pane ──
+       The slave is its own full-viewport iframe, so fixed+left:50%
+       is correct — it always centres within the right pane.         */
     #slaveInfoLabel {
       position: fixed;
-      top: 38px;           /* sits just below the LIVE SYNC badge */
+      top: 38px;              /* just below LIVE SYNC badge */
       left: 50%;
       transform: translateX(-50%);
       z-index: 300;
-      display: none;       /* hidden until master sends a model selection */
+      display: none;
       flex-direction: column;
       align-items: center;
       gap: 1px;
-      background: rgba(0,0,0,.80);
+      background: rgba(0,0,0,.82);
       border: 1.5px solid rgba(255,200,0,.55);
-      border-radius: 24px;
-      padding: 5px 22px 7px;
+      border-radius: 26px;
+      padding: 5px 24px 7px;
       pointer-events: none;
       white-space: nowrap;
       box-shadow: 0 2px 18px rgba(255,200,0,.18);
@@ -53,13 +66,13 @@
     #slaveInfoLabel.visible { display: flex; }
     #slaveInfoLabel .sil-month {
       font: 700 10px/1.2 system-ui, sans-serif;
-      letter-spacing: .16em;
+      letter-spacing: .18em;
       text-transform: uppercase;
       color: rgba(255,200,0,.65);
     }
     #slaveInfoLabel .sil-name {
       font: 800 13px/1.4 system-ui, sans-serif;
-      letter-spacing: .07em;
+      letter-spacing: .06em;
       text-transform: uppercase;
       color: #ffc800;
     }
@@ -71,30 +84,27 @@
 <!-- Live sync indicator -->
 <div id="syncLabel"><div class="dot" id="dot"></div>LIVE SYNC</div>
 
-<!-- Model info label — populated from master via postMessage -->
+<!-- Model label — month + name sent from master -->
 <div id="slaveInfoLabel">
-  <span class="sil-month" id="slaveMonthSpan"></span>
-  <span class="sil-name"  id="slaveNameSpan"></span>
+  <span class="sil-month" id="slaveMonth"></span>
+  <span class="sil-name"  id="slaveName"></span>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.127.0/Cesium.js"></script>
 <script>
-/* ═══════════ CONFIG ═══════════ */
-const PROJECT_LOC = {lon:80.496093, lat:16.542750, height:350};
-const HEIGHT_OFFSET = 60;
-const ORTHO_TMS_URL = "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/3D_Jan2026/2D-Ortho-Geotiff/2D_ortho_AGC_Building_Zone_27012026/";
+/* ════════════ CONFIG ════════════ */
+const PROJECT_LOC    = {lon:80.496093, lat:16.542750, height:350};
+const HEIGHT_OFFSET  = 60;
+const ORTHO_TMS_URL  = "https://amaravati-3d-data.s3.ap-southeast-2.amazonaws.com/3D_Jan2026/2D-Ortho-Geotiff/2D_ortho_AGC_Building_Zone_27012026/";
 
 Cesium.Ion.defaultAccessToken = undefined;
-const creditDiv = document.createElement("div");
-creditDiv.style.display = "none";
-document.body.appendChild(creditDiv);
+const creditDiv = document.createElement("div"); creditDiv.style.display="none"; document.body.appendChild(creditDiv);
 
-const viewer = new Cesium.Viewer("cesiumContainer", {
+const viewer = new Cesium.Viewer("cesiumContainer",{
   terrain:undefined, timeline:false, animation:false,
   geocoder:false, homeButton:false, sceneModePicker:false,
   baseLayerPicker:false, navigationHelpButton:false,
-  infoBox:false, selectionIndicator:false,
-  creditContainer:creditDiv
+  infoBox:false, selectionIndicator:false, creditContainer:creditDiv
 });
 
 function killCredits(){
@@ -107,9 +117,7 @@ function killCredits(){
 
 /* Basemaps */
 viewer.imageryLayers.removeAll();
-viewer.imageryLayers.addImageryProvider(
-  new Cesium.OpenStreetMapImageryProvider({url:"https://a.tile.openstreetmap.org/"})
-);
+viewer.imageryLayers.addImageryProvider(new Cesium.OpenStreetMapImageryProvider({url:"https://a.tile.openstreetmap.org/"}));
 (async()=>{
   try{
     const p = await Cesium.TileMapServiceImageryProvider.fromUrl(ORTHO_TMS_URL,
@@ -119,17 +127,17 @@ viewer.imageryLayers.addImageryProvider(
 })();
 
 viewer.camera.setView({
-  destination:Cesium.Cartesian3.fromDegrees(PROJECT_LOC.lon,PROJECT_LOC.lat,PROJECT_LOC.height),
-  orientation:{heading:0, pitch:Cesium.Math.toRadians(-35), roll:0}
+  destination: Cesium.Cartesian3.fromDegrees(PROJECT_LOC.lon, PROJECT_LOC.lat, PROJECT_LOC.height),
+  orientation: {heading:0, pitch:Cesium.Math.toRadians(-35), roll:0}
 });
 viewer.scene.globe.depthTestAgainstTerrain = false;
 
-/* Disable all manual camera input — slave is read-only */
+/* Disable all manual camera input */
 const ctrl = viewer.scene.screenSpaceCameraController;
 ctrl.enableRotate=false; ctrl.enableTranslate=false; ctrl.enableZoom=false;
 ctrl.enableTilt=false;   ctrl.enableLook=false;
 
-/* ═══════════ TILESETS ═══════════ */
+/* ════════════ TILESETS ════════════ */
 let slaveTilesets = [];
 
 async function slaveLoadTileset(url){
@@ -140,20 +148,20 @@ async function slaveLoadTileset(url){
     slaveTilesets.push(viewer.scene.primitives.add(ts));
     await ts.readyPromise;
     const bs=ts.boundingSphere, c=Cesium.Cartographic.fromCartesian(bs.center);
-    const surf=Cesium.Cartesian3.fromRadians(c.longitude,c.latitude,c.height);
-    const off =Cesium.Cartesian3.fromRadians(c.longitude,c.latitude,c.height+HEIGHT_OFFSET);
-    ts.modelMatrix=Cesium.Matrix4.fromTranslation(
-      Cesium.Cartesian3.subtract(off,surf,new Cesium.Cartesian3()));
+    const surf = Cesium.Cartesian3.fromRadians(c.longitude, c.latitude, c.height);
+    const off  = Cesium.Cartesian3.fromRadians(c.longitude, c.latitude, c.height+HEIGHT_OFFSET);
+    ts.modelMatrix = Cesium.Matrix4.fromTranslation(
+      Cesium.Cartesian3.subtract(off, surf, new Cesium.Cartesian3()));
     viewer.scene.requestRender();
-  }catch(err){console.error("Slave tileset:",err)}
+  }catch(err){ console.error("Slave tileset load failed:", err); }
 }
 
 function slaveClearTilesets(){
-  slaveTilesets.forEach(ts=>viewer.scene.primitives.remove(ts));
-  slaveTilesets=[];
+  slaveTilesets.forEach(ts => viewer.scene.primitives.remove(ts));
+  slaveTilesets = [];
 }
 
-/* ═══════════ SYNC DOT ═══════════ */
+/* ════════════ SYNC DOT ════════════ */
 const dot = document.getElementById("dot");
 let dotOff = null;
 function flashDot(){
@@ -162,26 +170,23 @@ function flashDot(){
   dotOff = setTimeout(()=>dot.classList.remove("active"), 300);
 }
 
-/* ═══════════ SLAVE INFO LABEL ═══════════ */
-const slaveInfoLabel  = document.getElementById("slaveInfoLabel");
-const slaveMonthSpan  = document.getElementById("slaveMonthSpan");
-const slaveNameSpan   = document.getElementById("slaveNameSpan");
+/* ════════════ SLAVE LABEL ════════════ */
+const slaveInfoLabel = document.getElementById("slaveInfoLabel");
+const slaveMonthEl   = document.getElementById("slaveMonth");
+const slaveNameEl    = document.getElementById("slaveName");
 
 function showSlaveLabel(month, name){
   if(month || name){
-    slaveMonthSpan.textContent = month || "";
-    slaveNameSpan.textContent  = name  || "";
+    slaveMonthEl.textContent = month || "";
+    slaveNameEl.textContent  = name  || "";
     slaveInfoLabel.classList.add("visible");
   } else {
     slaveInfoLabel.classList.remove("visible");
-    slaveMonthSpan.textContent = "";
-    slaveNameSpan.textContent  = "";
   }
 }
 
-/* ═══════════ CAMERA SYNC ═══════════ */
-let pending    = null;
-let rafPending = false;
+/* ════════════ CAMERA SYNC ════════════ */
+let pending = null, rafPending = false;
 
 function applyCamera(){
   rafPending = false;
@@ -203,20 +208,17 @@ function applyCamera(){
     try{
       cam.setView({
         destination: new Cesium.Cartesian3(d.px,d.py,d.pz),
-        orientation:{
-          direction: new Cesium.Cartesian3(d.dx,d.dy,d.dz),
-          up:        new Cesium.Cartesian3(d.ux,d.uy,d.uz)
-        }
+        orientation:{ direction:new Cesium.Cartesian3(d.dx,d.dy,d.dz), up:new Cesium.Cartesian3(d.ux,d.uy,d.uz) }
       });
       viewer.scene.requestRender();
     }catch(_){}
   }
 }
 
-/* ═══════════ MESSAGE HANDLER ═══════════ */
+/* ════════════ MESSAGE HANDLER ════════════ */
 window.addEventListener("message", e=>{
   const d = e.data;
-  if(!d || !d.type) return;
+  if(!d||!d.type) return;
 
   if(d.type === "CAMERA_SYNC"){
     pending = d;
@@ -227,14 +229,14 @@ window.addEventListener("message", e=>{
   if(d.type === "LOAD_TILESET"  && d.url){ slaveLoadTileset(d.url); return; }
   if(d.type === "CLEAR_TILESETS"){ slaveClearTilesets(); return; }
 
-  /* ── Model info label from master ── */
+  /* ── Model label from master ── */
   if(d.type === "DISPLAY_MODEL_LABEL"){
-    showSlaveLabel(d.month || "", d.name || "");
+    showSlaveLabel(d.month||"", d.name||"");
     return;
   }
 });
 
-/* ═══════════ READY SIGNAL ═══════════ */
+/* ════════════ READY SIGNAL ════════════ */
 let readyCount = 0;
 const readyTimer = setInterval(()=>{
   try{ window.parent.postMessage({type:"SLAVE_READY"},"*"); }catch(_){}
